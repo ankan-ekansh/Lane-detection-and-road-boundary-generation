@@ -41,54 +41,75 @@ def region_of_interest(image):
 
 
 def create_hough_lines(image):
-    lines = cv2.HoughLinesP(image, 2, np.pi / 180, 100, np.array([]), minLineLength=40, maxLineGap=5)
+    lines = cv2.HoughLinesP(image, 2, np.pi / 180, 100, np.array([]), minLineLength=5, maxLineGap=5)
     # lines = cv2.HoughLinesP(image, 2, np.pi/180, 100, np.array([]), minLineLength = 20, maxLineGap = 200)
     return lines
 
-# def make_points(image, line_params):
-#     slope, intercept = line_params
-#     # slope = line_params[0]
-#     # intercept = line_params[1]
-#     # y1 = int(image.shape[0] * 1/5)
-#     y1 = image.shape[0]
-#     y2 = int(y1*(3/5))
-#     x1 = int(y1 - intercept/slope)
-#     x2 = int(y2 - intercept/slope)
-#     return np.array([x1, y1, x2, y2])
+def make_points(image, line_params):
+    slope, intercept = line_params
+    # slope = line_params[0]
+    # intercept = line_params[1]
+    # y1 = int(image.shape[0] * 1/5)
+    y1 = long(image.shape[0])
+    y2 = long((y1*65)/100)
+    x1 = long((y1 - intercept)/slope)
+    x2 = long((y2 - intercept)/slope)
+    # print y1, y2
+    return np.array([x1, y1, x2, y2])
 
 
-# def average_slope_intercept(image, lines):
-#     left = []
-#     right = []
-#     for line in lines:
-#         x1, y1, x2, y2 = line.reshape(4)
-#         param = np.polyfit((x1, x2), (y1, y2), 1)   #Fitting a polynomial of degree 1 according to the points, returns slope and y intercept
+def average_slope_intercept(image, lines, prev):
+    left = []
+    right = []
+    for line in lines:
+        x1, y1, x2, y2 = line.reshape(4)
+        param = np.polyfit((x1, x2), (y1, y2), 1)   #Fitting a polynomial of degree 1 according to the points, returns slope and y intercept
         
-#         print param
+        # print param, 'parameters'
 
-#         slope = param[0]
-#         intercept = param[1]
+        slope = (param[0])
+        intercept = (param[1])
         
-#         #   Now check if the slope corresponds to the left side or the right side
-#         #   Since Y increases on moving downwards here, the lines on right side of image have a positive slope and the ones on the left side have a negative slope
+        #   Now check if the slope corresponds to the left side or the right side
+        #   Since Y increases on moving downwards here, the lines on right side of image have a positive slope and the ones on the left side have a negative slope
 
-#         if slope < 0:
-#             left.append((slope, intercept))
-#         else:
-#             right.append((slope, intercept))
+        if slope < 0:
+            left.append((slope, intercept))
+        else:
+            right.append((slope, intercept))
         
-#         print left
-#         print right
+    # print left, 'left'
+    # print right, 'right'
+    # if(len(left) == 0):
+    #     return np.array([[0,0,0,0], [0,0,0,0]])
+    # if(len(right) == 0):
+    #     return np.array([[0,0,0,0], [0,0,0,0]])
 
-#         left_average = np.average(left, axis = 0)
-#         right_average = np.average(right, axis = 0)
+    left_average = np.average(left, axis = 0)
+    right_average = np.average(right, axis = 0)
 
-#         print left_average
-#         print right_average
+    # print left_average, 'left avg'
+    # print right_average, 'right avg'
+    
+    # if ((np.isnan(left_average) == False) and ((np.isnan(right_average) == False))):
 
-#         left_line = make_points(image, left_average)
-#         right_line = make_points(image, right_average)
-#         return np.array([left_line, right_line])
+    if(len(left) == 0):
+        # return np.array([[0,0,0,0], [0,0,0,0]])
+        # left_line = np.array([0,0,0,0])
+        left_line = prev[0]
+    else:
+        left_line = make_points(image, left_average)
+        prev[0] = left_line
+    if(len(right) == 0):
+        # return np.array([[0,0,0,0], [0,0,0,0]])
+        # right_line = np.array([0,0,0,0])
+        right_line = prev[1]
+    else:
+        right_line = make_points(image, right_average)
+        prev[1] = right_line
+    
+
+    return np.array([left_line, right_line])
 
 def display_lines(image, lines):
     img = np.zeros_like(image)
@@ -96,7 +117,7 @@ def display_lines(image, lines):
         for line in lines:  # line is a 2D Array, so we reshape it into a 1D array
             # print(line)
             x1, y1, x2, y2 = line.reshape(4)
-            cv2.line(img, (x1, y1), (x2, y2), (255, 0, 0), 10)  # 4th Argument is BGR Color, 5th is thickness of line
+            cv2.line(img, (long(x1), long(y1)), (long(x2), long(y2)), (255, 0, 0), 10)  # 4th Argument is BGR Color, 5th is thickness of line
 
 
     # img = np.zeros((image.shape[0], image.shape[1], 3), dtype=np.uint8)
@@ -113,6 +134,7 @@ def combine(lane_image, line_image):
     return final
 
 cap = cv2.VideoCapture('test_video2.mp4')
+prev = np.array([[0, 0, 0 , 0], [0, 0, 0, 0]])
 while(cap.isOpened()):
     ret,img = cap.read()
     if ret:
@@ -121,17 +143,20 @@ while(cap.isOpened()):
         roi = region_of_interest(img_with_edge)
         lines = create_hough_lines(roi)
 
-        # average_lines = average_slope_intercept(im, lines)
-        # line_img = display_lines(im, average_lines)
+        # print lines, 'lines'
 
-        line_img = display_lines(im, lines)
+        average_lines = average_slope_intercept(im, lines, prev)
+        line_img = display_lines(im, average_lines)
+
+        # line_img = display_lines(im, lines)
 
         final = combine(im, line_img)
 
         # cv2.imshow('Original', img)
         # cv2.imshow('Edges', img_with_edge)
         # cv2.imshow('Mask', roi)
-        # cv2.imshow('Line Image', line_img)
+        cv2.imshow('Im', im)
+        cv2.imshow('Line Image', line_img)
         cv2.imshow('Final', final)
 
     else:
